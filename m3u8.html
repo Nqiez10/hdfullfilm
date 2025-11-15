@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>HLS Player - M3U8 (Bulut Depolama Desteği)</title>
+  <style>
+    body { 
+      margin: 0; 
+      background: #000; 
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .controls {
+      background: #1a1a1a;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+    .controls input {
+      width: 70%;
+      padding: 8px;
+      margin-right: 10px;
+      border: 1px solid #333;
+      background: #2a2a2a;
+      color: #fff;
+      border-radius: 3px;
+    }
+    .controls button {
+      padding: 8px 15px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .controls button:hover {
+      background: #45a049;
+    }
+    video { 
+      width: 100%; 
+      height: auto;
+      max-height: 80vh;
+      background: #000;
+    }
+    .info {
+      color: #888;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="controls">
+    <input type="text" id="m3u8Url" placeholder="M3U8 URL'sini buraya yapıştırın (örn: https://bulut.com/video/720p.m3u8)" value="720p.m3u8">
+    <button onclick="loadVideo()">Yükle</button>
+  </div>
+  
+  <video id="videoPlayer" controls></video>
+  
+  <div class="info">
+    <strong>Kullanım:</strong><br>
+    • Yerel dosya: "720p.m3u8" veya "./720p.m3u8"<br>
+    • Bulut depolama: "https://example.com/path/720p.m3u8"<br>
+    • Google Drive, Dropbox, OneDrive gibi servisler için doğrudan link kullanın<br>
+    • CORS hatası alırsanız, bulut depolama servisinizde CORS ayarlarını yapın
+  </div>
+</div>
+
+<!-- hls.js kütüphanesi -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+  let hls = null;
+  const video = document.getElementById("videoPlayer");
+  
+  function loadVideo() {
+    const videoSrc = document.getElementById("m3u8Url").value.trim();
+    
+    if (!videoSrc) {
+      alert("Lütfen bir M3U8 URL'si girin!");
+      return;
+    }
+    
+    // Önceki player'ı temizle
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+    
+    if (Hls.isSupported()) {
+      hls = new Hls({
+        // CORS ayarları
+        xhrSetup: function(xhr, url) {
+          xhr.withCredentials = false; // CORS için
+        },
+        // Hata toleransı
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        enableWorker: true
+      });
+      
+      hls.loadSource(videoSrc);
+      hls.attachMedia(video);
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, function() {
+        console.log("Manifest yüklendi, video oynatılıyor...");
+        video.play().catch(e => {
+          console.log("Otomatik oynatma engellendi, kullanıcı tıklamalı");
+        });
+      });
+      
+      // Hata yönetimi
+      hls.on(Hls.Events.ERROR, function(event, data) {
+        console.error("HLS Hatası:", data);
+        
+        if (data.fatal) {
+          switch(data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.error("Ağ hatası, yeniden deneniyor...");
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.error("Medya hatası, düzeltiliyor...");
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error("Kritik hata, kurtarılamıyor");
+              alert("Video yüklenirken hata oluştu: " + data.details);
+              hls.destroy();
+              break;
+          }
+        }
+      });
+      
+      // Yükleme ilerlemesi
+      hls.on(Hls.Events.FRAG_LOADED, function(event, data) {
+        console.log("Segment yüklendi:", data.frag.url);
+      });
+      
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari native HLS desteği
+      video.src = videoSrc;
+      video.addEventListener('loadedmetadata', function() {
+        video.play().catch(e => {
+          console.log("Otomatik oynatma engellendi");
+        });
+      });
+    } else {
+      alert("Tarayıcınız HLS oynatmayı desteklemiyor!");
+    }
+  }
+  
+  // Enter tuşu ile yükleme
+  document.getElementById("m3u8Url").addEventListener("keypress", function(e) {
+    if (e.key === "Enter") {
+      loadVideo();
+    }
+  });
+  
+  // Sayfa yüklendiğinde varsayılan videoyu yükle
+  window.addEventListener("DOMContentLoaded", function() {
+    loadVideo();
+  });
+</script>
+
+</body>
+</html>
